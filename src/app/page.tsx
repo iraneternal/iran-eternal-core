@@ -378,7 +378,7 @@ export default function Home() {
               {/* OPTION A: CANADA / UK / GERMANY (Standard Send Button + Copy) */}
               {selectedCountry !== 'US' && (
                 <div className="space-y-3 pt-2">
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row">
                     <button onClick={() => { navigator.clipboard.writeText(`${emailContent.subject}\n\n${emailContent.body}`); alert("Copied!"); }} className="flex-1 py-3 border-2 border-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-50 flex justify-center items-center gap-2 touch-manipulation">
                       <Copy size={18}/> Copy
                     </button>
