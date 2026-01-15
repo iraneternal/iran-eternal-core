@@ -186,90 +186,19 @@ async function syncCommitteeMembersIfNeeded(): Promise<CommitteeMap> {
   return committeeMap;
 }
 
-// Auto-sync EU MEPs if cache is empty or has too few entries
-async function syncEUMepsIfNeeded(): Promise<CachedRep[]> {
-  // Check if already cached
+// Get EU MEPs from cache (scraped emails are populated by sync-reps endpoint)
+async function getEUMepsFromCache(): Promise<CachedRep[]> {
   const existing = await redis.get(CACHE_KEYS.EU_MEPS);
   if (existing) {
     const data = typeof existing === 'string' ? JSON.parse(existing) : existing;
-    // If we have a reasonable number of MEPs (720+), use cache
-    // Otherwise, re-fetch (cache might be corrupted/incomplete)
-    if (Array.isArray(data) && data.length > 500) {
+    if (Array.isArray(data) && data.length > 0) {
       return data as CachedRep[];
     }
-    // Cache seems incomplete, will re-fetch
-    console.log(`EU MEP cache has only ${Array.isArray(data) ? data.length : 0} entries, re-fetching...`);
   }
-
-  // Fetch from EU Parliament XML endpoint
-  const res = await axios.get('https://www.europarl.europa.eu/meps/en/full-list/xml', {
-    timeout: 60000,
-    headers: { 'Accept': 'application/xml, text/xml' }
-  });
-
-  const xmlData = res.data;
-  if (!xmlData) throw new Error('Could not fetch EU MEP data');
-
-  const mepMatches = xmlData.match(/<mep>([\s\S]*?)<\/mep>/g) || [];
-  if (mepMatches.length === 0) throw new Error('No MEP data found');
-
-  const cachedReps: CachedRep[] = [];
-
-  for (const mepXml of mepMatches) {
-    const fullNameMatch = mepXml.match(/<fullName>([^<]*)<\/fullName>/);
-    const countryMatch = mepXml.match(/<country>([^<]*)<\/country>/);
-    const politicalGroupMatch = mepXml.match(/<politicalGroup>([^<]*)<\/politicalGroup>/);
-    const idMatch = mepXml.match(/<id>([^<]*)<\/id>/);
-    const nationalPartyMatch = mepXml.match(/<nationalPoliticalGroup>([^<]*)<\/nationalPoliticalGroup>/);
-
-    const fullName = fullNameMatch ? fullNameMatch[1].trim() : '';
-    const country = countryMatch ? countryMatch[1].trim() : '';
-    const politicalGroup = politicalGroupMatch ? politicalGroupMatch[1].trim() : '';
-    const mepId = idMatch ? idMatch[1].trim() : '';
-    const nationalParty = nationalPartyMatch ? nationalPartyMatch[1].trim() : '';
-
-    if (!fullName || !mepId) continue;
-
-    const memberState = EU_COUNTRY_TO_CODE[country] || '';
-
-    // Build email from name
-    const nameParts = fullName.split(' ');
-    let firstName = '', lastName = '';
-    for (const part of nameParts) {
-      if (part === part.toUpperCase() && part.length > 1) {
-        lastName = part.toLowerCase();
-      } else {
-        firstName = firstName ? `${firstName}-${part.toLowerCase()}` : part.toLowerCase();
-      }
-    }
-
-    const cleanForEmail = (str: string) => str
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z-]/g, '').replace(/-+/g, '-');
-
-    const email = cleanForEmail(firstName) && cleanForEmail(lastName)
-      ? `${cleanForEmail(firstName)}.${cleanForEmail(lastName)}@europarl.europa.eu`
-      : '';
-
-    cachedReps.push({
-      name: fullName,
-      district: country,
-      email,
-      photo: mepId ? `https://www.europarl.europa.eu/mepphoto/${mepId}.jpg` : '',
-      type: 'mep',
-      memberState,
-      politicalGroup,
-      nationalParty,
-      mepId,
-    });
-  }
-
-  // Cache the data
-  if (cachedReps.length > 0) {
-    await redis.set(CACHE_KEYS.EU_MEPS, JSON.stringify(cachedReps), { ex: CACHE_TTL });
-  }
-
-  return cachedReps;
+  // Cache is empty - return empty array
+  // User should call /api/sync-reps?type=eu to populate the cache with scraped emails
+  console.log('EU MEP cache is empty. Call /api/sync-reps?type=eu to populate.');
+  return [];
 }
 
 export async function GET(req: Request) {
@@ -300,14 +229,14 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Invalid EU member state code' }, { status: 400 });
       }
 
-      // Auto-sync if needed (fetches from EU Parliament if cache is empty)
+      // Get MEPs from cache (populated by /api/sync-reps?type=eu)
       const [allMeps, committeeMap] = await Promise.all([
-        syncEUMepsIfNeeded(),
+        getEUMepsFromCache(),
         syncCommitteeMembersIfNeeded(),
       ]);
 
       // Filter by member state AND committee membership (AFET, DROI, or D-IR)
-      let filtered = allMeps.filter(mep =>
+      let filtered = allMeps.filter((mep: CachedRep) =>
         mep.memberState === memberState.toUpperCase() &&
         mep.mepId &&
         committeeMap[mep.mepId]
@@ -330,7 +259,7 @@ export async function GET(req: Request) {
       }
 
       return NextResponse.json({
-        reps: filtered.map(mep => ({
+        reps: filtered.map((mep: CachedRep) => ({
           name: mep.name,
           district: mep.district, // Country name
           email: mep.email,

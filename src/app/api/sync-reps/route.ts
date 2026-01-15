@@ -257,6 +257,44 @@ async function syncEUCommitteeMembers(): Promise<CommitteeMap> {
   return committeeMap;
 }
 
+// Decode obfuscated EU Parliament email
+// Format: "ue[dot]aporue.lraporue[at]aemujneb.lebasi" -> "isabel.benjumea@europarl.europa.eu"
+function decodeEUEmail(obfuscated: string): string {
+  // Reverse the string
+  const reversed = obfuscated.split('').reverse().join('');
+  // After reversing, [at] becomes ]ta[ and [dot] becomes ]tod[
+  return reversed.replace(/\]ta\[/g, '@').replace(/\]tod\[/g, '.');
+}
+
+// Fetch official email from MEP profile page
+async function fetchMepEmail(mepId: string, fullName: string): Promise<string> {
+  try {
+    // Build URL slug from name: "Mika AALTOLA" -> "MIKA_AALTOLA"
+    const nameSlug = fullName
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .toUpperCase();
+
+    const url = `https://www.europarl.europa.eu/meps/en/${mepId}/${nameSlug}/home`;
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; EchoesOfIran/1.0)',
+      }
+    });
+
+    // Find obfuscated email pattern: ue[dot]aporue.lraporue[at]...
+    const emailMatch = response.data.match(/ue\[dot\]aporue\.lraporue\[at\][a-z.-]+/i);
+    if (emailMatch) {
+      return decodeEUEmail(emailMatch[0]);
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
+}
+
 // Sync EU Parliament MEPs
 async function syncEUMeps(): Promise<CachedRep[]> {
   // Fetch from EU Parliament XML endpoint
@@ -302,42 +340,13 @@ async function syncEUMeps(): Promise<CachedRep[]> {
     // Get country code
     const memberState = EU_COUNTRY_TO_CODE[country] || '';
 
-    // Construct email: firstname.lastname@europarl.europa.eu
-    // Handle names like "Mika AALTOLA" -> "mika.aaltola@europarl.europa.eu"
-    const nameParts = fullName.split(' ');
-    let firstName = '';
-    let lastName = '';
-
-    // Find the surname (usually in CAPS) and first name
-    for (const part of nameParts) {
-      if (part === part.toUpperCase() && part.length > 1) {
-        // This is likely the surname (all caps)
-        lastName = part.toLowerCase();
-      } else {
-        // First name parts
-        firstName = firstName ? `${firstName}-${part.toLowerCase()}` : part.toLowerCase();
-      }
-    }
-
-    // Clean names for email (remove accents, special chars)
-    const cleanForEmail = (str: string) => str
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
-      .replace(/[^a-z-]/g, '') // Keep only letters and hyphens
-      .replace(/-+/g, '-'); // Collapse multiple hyphens
-
-    const emailFirstName = cleanForEmail(firstName);
-    const emailLastName = cleanForEmail(lastName);
-    const email = emailFirstName && emailLastName
-      ? `${emailFirstName}.${emailLastName}@europarl.europa.eu`
-      : '';
-
     // Photo URL format: https://www.europarl.europa.eu/mepphoto/{id}.jpg
     const photo = mepId ? `https://www.europarl.europa.eu/mepphoto/${mepId}.jpg` : '';
 
     cachedReps.push({
       name: fullName,
       district: country, // Use country as district for EU
-      email: email,
+      email: '', // Will be populated by scraping
       photo: photo,
       type: 'mep',
       memberState: memberState,
@@ -350,6 +359,32 @@ async function syncEUMeps(): Promise<CachedRep[]> {
   if (cachedReps.length === 0) {
     throw new Error('Could not parse any MEP data');
   }
+
+  // Scrape official emails from individual MEP pages in batches
+  console.log(`Scraping emails for ${cachedReps.length} MEPs...`);
+  const BATCH_SIZE = 10;
+  const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches
+
+  for (let i = 0; i < cachedReps.length; i += BATCH_SIZE) {
+    const batch = cachedReps.slice(i, i + BATCH_SIZE);
+    const emailPromises = batch.map(rep => fetchMepEmail(rep.mepId!, rep.name));
+    const emails = await Promise.all(emailPromises);
+
+    // Assign emails to reps
+    batch.forEach((rep, index) => {
+      rep.email = emails[index];
+    });
+
+    console.log(`Scraped emails for MEPs ${i + 1}-${Math.min(i + BATCH_SIZE, cachedReps.length)} of ${cachedReps.length}`);
+
+    // Delay between batches to avoid rate limiting
+    if (i + BATCH_SIZE < cachedReps.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+    }
+  }
+
+  const withEmails = cachedReps.filter(r => r.email).length;
+  console.log(`Successfully scraped ${withEmails}/${cachedReps.length} emails`);
 
   return cachedReps;
 }
