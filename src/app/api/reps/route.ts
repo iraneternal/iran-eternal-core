@@ -1,7 +1,8 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { redis, CACHE_KEYS } from '@/lib/redis';
+import axios from 'axios';
+import { redis, CACHE_KEYS, CACHE_TTL } from '@/lib/redis';
 
 interface CachedRep {
   name: string;
@@ -10,7 +11,54 @@ interface CachedRep {
   photo: string;
   deptCode?: string;
   valkrets?: string;
+  state?: string;
+  type?: string;
+  // EU MEP specific fields
+  memberState?: string;
+  politicalGroup?: string;
+  nationalParty?: string;
+  mepId?: string;
 }
+
+// Helper function to map Australian postcode to state
+const getStateFromPostcode = (postcode: string): string | null => {
+  const code = parseInt(postcode);
+
+  // ACT: 0200-0299, 2600-2639 (must check before NSW to avoid overlap)
+  if ((code >= 200 && code <= 299) || (code >= 2600 && code <= 2639)) {
+    return 'ACT';
+  }
+  // NSW: 1000-2599, 2640-2999
+  if ((code >= 1000 && code <= 2599) || (code >= 2640 && code <= 2999)) {
+    return 'NSW';
+  }
+  // VIC: 3000-3999, 8000-8999
+  if ((code >= 3000 && code <= 3999) || (code >= 8000 && code <= 8999)) {
+    return 'Victoria';
+  }
+  // QLD: 4000-4999, 9000-9999
+  if ((code >= 4000 && code <= 4999) || (code >= 9000 && code <= 9999)) {
+    return 'Queensland';
+  }
+  // SA: 5000-5999
+  if (code >= 5000 && code <= 5999) {
+    return 'SA';
+  }
+  // WA: 6000-6999
+  if (code >= 6000 && code <= 6999) {
+    return 'WA';
+  }
+  // TAS: 7000-7999
+  if (code >= 7000 && code <= 7999) {
+    return 'Tasmania';
+  }
+  // NT: 0800-0999
+  if (code >= 800 && code <= 999) {
+    return 'NT';
+  }
+
+  return null;
+};
 
 // Mapping of Swedish postal code prefixes to electoral districts
 const SWEDEN_POSTAL_TO_VALKRETS: Record<string, string> = {
@@ -67,14 +115,240 @@ const SWEDEN_POSTAL_TO_VALKRETS: Record<string, string> = {
   '94': 'Norrbottens län', '95': 'Norrbottens län', '96': 'Norrbottens län', '97': 'Norrbottens län', '98': 'Norrbottens län',
 };
 
+// EU country name to ISO code mapping
+const EU_COUNTRY_TO_CODE: Record<string, string> = {
+  'Austria': 'AT', 'Belgium': 'BE', 'Bulgaria': 'BG', 'Croatia': 'HR',
+  'Cyprus': 'CY', 'Czech Republic': 'CZ', 'Czechia': 'CZ', 'Denmark': 'DK',
+  'Estonia': 'EE', 'Finland': 'FI', 'France': 'FR', 'Germany': 'DE',
+  'Greece': 'GR', 'Hungary': 'HU', 'Ireland': 'IE', 'Italy': 'IT',
+  'Latvia': 'LV', 'Lithuania': 'LT', 'Luxembourg': 'LU', 'Malta': 'MT',
+  'Netherlands': 'NL', 'Poland': 'PL', 'Portugal': 'PT', 'Romania': 'RO',
+  'Slovakia': 'SK', 'Slovenia': 'SI', 'Spain': 'ES', 'Sweden': 'SE',
+};
+
+// Fetch committee member IDs from EU Parliament website
+async function fetchCommitteeMemberIds(url: string): Promise<string[]> {
+  try {
+    const res = await axios.get(url, { timeout: 30000 });
+    const html = res.data as string;
+    const matches = html.match(/meps\/en\/(\d+)/g) || [];
+    const ids: string[] = matches.map((m: string) => m.replace('meps/en/', ''));
+    return [...new Set(ids)];
+  } catch (e) {
+    console.warn(`Failed to fetch committee members from ${url}:`, e);
+    return [];
+  }
+}
+
+// Committee membership mapping: MEP ID -> list of committees
+type CommitteeMap = Record<string, string[]>;
+
+// Auto-sync EU committee members if cache is empty
+async function syncCommitteeMembersIfNeeded(): Promise<CommitteeMap> {
+  const existing = await redis.get(CACHE_KEYS.EU_COMMITTEE_MEMBERS);
+  if (existing) {
+    const data = typeof existing === 'string' ? JSON.parse(existing) : existing;
+    // Check if it's the new format (object) with enough entries
+    if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 50) {
+      return data as CommitteeMap;
+    }
+  }
+
+  // Fetch from all three committees/delegations
+  const [afetIds, droiIds, dirIds] = await Promise.all([
+    fetchCommitteeMemberIds('https://www.europarl.europa.eu/committees/en/afet/home/members'),
+    fetchCommitteeMemberIds('https://www.europarl.europa.eu/committees/en/droi/home/members'),
+    fetchCommitteeMemberIds('https://www.europarl.europa.eu/delegations/en/d-ir/members'),
+  ]);
+
+  // Build a map of MEP ID -> committees they belong to
+  const committeeMap: CommitteeMap = {};
+
+  for (const id of afetIds) {
+    if (!committeeMap[id]) committeeMap[id] = [];
+    committeeMap[id].push('AFET');
+  }
+  for (const id of droiIds) {
+    if (!committeeMap[id]) committeeMap[id] = [];
+    committeeMap[id].push('DROI');
+  }
+  for (const id of dirIds) {
+    if (!committeeMap[id]) committeeMap[id] = [];
+    committeeMap[id].push('D-IR');
+  }
+
+  console.log(`Synced committee members: ${afetIds.length} AFET, ${droiIds.length} DROI, ${dirIds.length} D-IR (${Object.keys(committeeMap).length} unique)`);
+
+  if (Object.keys(committeeMap).length > 0) {
+    await redis.set(CACHE_KEYS.EU_COMMITTEE_MEMBERS, JSON.stringify(committeeMap), { ex: CACHE_TTL });
+  }
+
+  return committeeMap;
+}
+
+// Auto-sync EU MEPs if cache is empty or has too few entries
+async function syncEUMepsIfNeeded(): Promise<CachedRep[]> {
+  // Check if already cached
+  const existing = await redis.get(CACHE_KEYS.EU_MEPS);
+  if (existing) {
+    const data = typeof existing === 'string' ? JSON.parse(existing) : existing;
+    // If we have a reasonable number of MEPs (720+), use cache
+    // Otherwise, re-fetch (cache might be corrupted/incomplete)
+    if (Array.isArray(data) && data.length > 500) {
+      return data as CachedRep[];
+    }
+    // Cache seems incomplete, will re-fetch
+    console.log(`EU MEP cache has only ${Array.isArray(data) ? data.length : 0} entries, re-fetching...`);
+  }
+
+  // Fetch from EU Parliament XML endpoint
+  const res = await axios.get('https://www.europarl.europa.eu/meps/en/full-list/xml', {
+    timeout: 60000,
+    headers: { 'Accept': 'application/xml, text/xml' }
+  });
+
+  const xmlData = res.data;
+  if (!xmlData) throw new Error('Could not fetch EU MEP data');
+
+  const mepMatches = xmlData.match(/<mep>([\s\S]*?)<\/mep>/g) || [];
+  if (mepMatches.length === 0) throw new Error('No MEP data found');
+
+  const cachedReps: CachedRep[] = [];
+
+  for (const mepXml of mepMatches) {
+    const fullNameMatch = mepXml.match(/<fullName>([^<]*)<\/fullName>/);
+    const countryMatch = mepXml.match(/<country>([^<]*)<\/country>/);
+    const politicalGroupMatch = mepXml.match(/<politicalGroup>([^<]*)<\/politicalGroup>/);
+    const idMatch = mepXml.match(/<id>([^<]*)<\/id>/);
+    const nationalPartyMatch = mepXml.match(/<nationalPoliticalGroup>([^<]*)<\/nationalPoliticalGroup>/);
+
+    const fullName = fullNameMatch ? fullNameMatch[1].trim() : '';
+    const country = countryMatch ? countryMatch[1].trim() : '';
+    const politicalGroup = politicalGroupMatch ? politicalGroupMatch[1].trim() : '';
+    const mepId = idMatch ? idMatch[1].trim() : '';
+    const nationalParty = nationalPartyMatch ? nationalPartyMatch[1].trim() : '';
+
+    if (!fullName || !mepId) continue;
+
+    const memberState = EU_COUNTRY_TO_CODE[country] || '';
+
+    // Build email from name
+    const nameParts = fullName.split(' ');
+    let firstName = '', lastName = '';
+    for (const part of nameParts) {
+      if (part === part.toUpperCase() && part.length > 1) {
+        lastName = part.toLowerCase();
+      } else {
+        firstName = firstName ? `${firstName}-${part.toLowerCase()}` : part.toLowerCase();
+      }
+    }
+
+    const cleanForEmail = (str: string) => str
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z-]/g, '').replace(/-+/g, '-');
+
+    const email = cleanForEmail(firstName) && cleanForEmail(lastName)
+      ? `${cleanForEmail(firstName)}.${cleanForEmail(lastName)}@europarl.europa.eu`
+      : '';
+
+    cachedReps.push({
+      name: fullName,
+      district: country,
+      email,
+      photo: mepId ? `https://www.europarl.europa.eu/mepphoto/${mepId}.jpg` : '',
+      type: 'mep',
+      memberState,
+      politicalGroup,
+      nationalParty,
+      mepId,
+    });
+  }
+
+  // Cache the data
+  if (cachedReps.length > 0) {
+    await redis.set(CACHE_KEYS.EU_MEPS, JSON.stringify(cachedReps), { ex: CACHE_TTL });
+  }
+
+  return cachedReps;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const country = searchParams.get('country');
     const postal = searchParams.get('postal');
+    const memberState = searchParams.get('memberState');
 
-    if (!country || !postal) {
-      return NextResponse.json({ error: 'Missing country or postal parameter' }, { status: 400 });
+    if (!country) {
+      return NextResponse.json({ error: 'Missing country parameter' }, { status: 400 });
+    }
+
+    // EU uses memberState instead of postal
+    if (country === 'EU') {
+      if (!memberState) {
+        return NextResponse.json({ error: 'Missing memberState parameter' }, { status: 400 });
+      }
+
+      // Validate member state code
+      const validMemberStates = [
+        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
+        'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
+        'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'
+      ];
+
+      if (!validMemberStates.includes(memberState.toUpperCase())) {
+        return NextResponse.json({ error: 'Invalid EU member state code' }, { status: 400 });
+      }
+
+      // Auto-sync if needed (fetches from EU Parliament if cache is empty)
+      const [allMeps, committeeMap] = await Promise.all([
+        syncEUMepsIfNeeded(),
+        syncCommitteeMembersIfNeeded(),
+      ]);
+
+      // Filter by member state AND committee membership (AFET, DROI, or D-IR)
+      let filtered = allMeps.filter(mep =>
+        mep.memberState === memberState.toUpperCase() &&
+        mep.mepId &&
+        committeeMap[mep.mepId]
+      );
+
+      // Limit to max 10 random MEPs to prevent spam flagging
+      if (filtered.length > 10) {
+        // Fisher-Yates shuffle
+        for (let i = filtered.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+        }
+        filtered = filtered.slice(0, 10);
+      }
+
+      if (filtered.length === 0) {
+        return NextResponse.json({
+          error: `No MEPs found for ${memberState} in AFET, DROI, or Iran Delegation committees`
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        reps: filtered.map(mep => ({
+          name: mep.name,
+          district: mep.district, // Country name
+          email: mep.email,
+          photo: mep.photo,
+          country: 'EU',
+          title: 'Member of European Parliament',
+          type: 'mep',
+          party: mep.politicalGroup,
+          memberState: mep.memberState,
+          committee: mep.mepId ? committeeMap[mep.mepId]?.join(', ') : undefined,
+          contactForm: mep.mepId ? `https://www.europarl.europa.eu/meps/en/${mep.mepId}` : undefined,
+        })),
+      });
+    }
+
+    // All other countries require postal code
+    if (!postal) {
+      return NextResponse.json({ error: 'Missing postal parameter' }, { status: 400 });
     }
 
     if (country === 'FR') {
@@ -169,6 +443,95 @@ export async function GET(req: Request) {
           type: 'mp',
         })),
       });
+
+    } else if (country === 'AU') {
+      // Australia lookup
+      const cleanPostal = postal.trim();
+      if (!/^\d{4}$/.test(cleanPostal)) {
+        return NextResponse.json({ error: 'Invalid Australian postcode format' }, { status: 400 });
+      }
+
+      // Map postcode to state
+      const state = getStateFromPostcode(cleanPostal);
+      if (!state) {
+        return NextResponse.json({ error: 'Could not determine state from postcode' }, { status: 400 });
+      }
+
+      // Get cached data
+      const houseData = await redis.get(CACHE_KEYS.AUSTRALIA_HOUSE);
+      const senatorData = await redis.get(CACHE_KEYS.AUSTRALIA_SENATORS);
+
+      if (!houseData || !senatorData) {
+        return NextResponse.json({
+          error: 'Data not cached. Please run sync first.',
+          needsSync: true
+        }, { status: 503 });
+      }
+
+      // Parse data
+      const allHouse: CachedRep[] = typeof houseData === 'string' ? JSON.parse(houseData) : houseData;
+      const allSenators: CachedRep[] = typeof senatorData === 'string' ? JSON.parse(senatorData) : senatorData;
+
+      // Filter senators by state
+      const stateSenators = allSenators.filter(s => s.state === state);
+
+      // For House MPs, we need to do a postcode lookup via OpenAustralia API
+      // since the cached data doesn't have postcode mapping
+      // Instead, return all House MPs and let client filter, or call API for specific postcode
+      // For now, we'll call the OpenAustralia API for the specific postcode House MPs
+      const apiKey = process.env.NEXT_PUBLIC_OPENAUSTRALIA_KEY?.trim();
+      if (!apiKey) {
+        return NextResponse.json({ error: 'OpenAustralia API key is missing' }, { status: 500 });
+      }
+
+      let houseMPs: any[] = [];
+      try {
+        const axios = (await import('axios')).default;
+        const houseRes = await axios.get(`https://www.openaustralia.org.au/api/getRepresentatives?key=${apiKey}&postcode=${cleanPostal}&output=js`, { timeout: 10000 });
+        houseMPs = houseRes.data || [];
+      } catch (e) {
+        console.warn('Failed to fetch House MPs for postcode:', e);
+      }
+
+      const reps = [
+        // House MPs from API call (specific to postcode)
+        ...houseMPs.map((rep: any) => {
+          const firstName = (rep.first_name || '').toLowerCase().replace(/[^a-z]/g, '');
+          const lastName = (rep.last_name || '').toLowerCase().replace(/[^a-z]/g, '');
+          const email = firstName && lastName ? `${firstName}.${lastName}@aph.gov.au` : '';
+          let photoUrl = rep.image || '';
+          if (photoUrl && photoUrl.startsWith('/')) {
+            photoUrl = `https://www.openaustralia.org.au${photoUrl}`;
+          }
+          return {
+            name: rep.full_name || rep.name || '',
+            district: rep.constituency || '',
+            email: email,
+            photo: photoUrl,
+            country: 'AU',
+            title: 'Member of Parliament',
+            type: 'mp',
+          };
+        }),
+        // Senators from cache (filtered by state)
+        ...stateSenators.map(s => ({
+          name: s.name,
+          district: s.district,
+          email: s.email,
+          photo: s.photo,
+          country: 'AU',
+          title: 'Senator',
+          type: 'sen',
+        })),
+      ];
+
+      if (reps.length === 0) {
+        return NextResponse.json({
+          error: 'No representatives found for this postcode'
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({ reps });
     }
 
     return NextResponse.json({ error: 'Unsupported country' }, { status: 400 });

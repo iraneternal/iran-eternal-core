@@ -6,21 +6,25 @@ export interface Representative {
   district: string;
   email: string;
   photo: string;
-  country: 'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE';
+  country: 'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE' | 'AU' | 'EU';
   title: string;
   phone?: string;
   formattedAddress?: string;
   bioguideId?: string;
   contactForm?: string;
-  type?: 'sen' | 'rep' | 'mp';
+  type?: 'sen' | 'rep' | 'mp' | 'mep';
+  committee?: string;      // For EU MEPs: committee name
+  party?: string;          // Political party/group
+  memberState?: string;    // For EU MEPs: their home country
 }
 
 interface SearchParams {
-  country: 'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE';
+  country: 'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE' | 'AU' | 'EU';
   postal?: string;
   street?: string;
   city?: string;
   state?: string;
+  memberState?: string;  // For EU: the user's EU member state
 }
 
 export function useRepresentative() {
@@ -63,6 +67,14 @@ export function useRepresentative() {
         if (!params.postal) throw new Error("Postnummer is required.");
         results = await fetchSwedishReps(params.postal);
       }
+      else if (params.country === 'AU') {
+        if (!params.postal) throw new Error("Postcode is required.");
+        results = await fetchAustralianReps(params.postal);
+      }
+      else if (params.country === 'EU') {
+        if (!params.memberState) throw new Error("Please select your EU member state.");
+        results = await fetchEUMeps(params.memberState);
+      }
 
       setData(results);
       return results;
@@ -93,8 +105,11 @@ export function useRepresentative() {
       const cityData = geoRes.data[0];
       let cityName = cityData.municipality?.name || cityData.name;
 
-      // Clean up city name: remove suffixes like ", Stadt" that won't match constituency labels
-      cityName = cityName.replace(/,\s*(Stadt|Kreisfreie Stadt|Landkreis)$/i, '').trim();
+      // Clean up city name: remove everything after comma (municipality type suffixes)
+      // Examples: "Hamburg, Freie und Hansestadt" -> "Hamburg"
+      //           "München, Landeshauptstadt" -> "München"
+      //           "Rostock, Hanse- und Universitätsstadt" -> "Rostock"
+      cityName = cityName.split(',')[0].trim();
 
       if (!cityName) throw new Error("Could not determine city from postal code.");
 
@@ -395,6 +410,177 @@ export function useRepresentative() {
       }
 
       throw new Error(err.response?.data?.error || "Unable to locate your Swedish representative. Please check the postal code.");
+    }
+  };
+
+  // --- Australia Fetcher ---
+  const fetchAustralianReps = async (postal: string): Promise<Representative[]> => {
+    try {
+      // Validate Australian postcode format (4 digits)
+      const cleanPostal = postal.trim();
+      if (!/^\d{4}$/.test(cleanPostal)) {
+        throw new Error("Invalid Australian postcode format. Please enter a 4-digit postcode.");
+      }
+
+      // Try cached API first (faster - senators are cached, only House MPs need API call)
+      try {
+        const res = await axios.get(`/api/reps?country=AU&postal=${cleanPostal}`);
+        if (res.data?.reps && res.data.reps.length > 0) {
+          return res.data.reps.map((rep: any) => ({
+            name: rep.name,
+            district: rep.district,
+            email: rep.email,
+            photo: rep.photo,
+            country: 'AU' as const,
+            title: rep.title,
+            type: rep.type,
+          }));
+        }
+      } catch (cacheErr: any) {
+        // If cache returns needsSync or fails, fall back to direct API
+        console.warn('Cache miss or error, falling back to direct API:', cacheErr.response?.data?.error || cacheErr.message);
+      }
+
+      // Fallback to direct API calls
+      const apiKey = process.env.NEXT_PUBLIC_OPENAUSTRALIA_KEY?.trim();
+      if (!apiKey) {
+        throw new Error("OpenAustralia API key is missing. Please add NEXT_PUBLIC_OPENAUSTRALIA_KEY to your environment variables.");
+      }
+
+      // Map postcode to state for senator lookup
+      const state = getStateFromPostcode(cleanPostal);
+
+      // Fetch both House representatives and Senators in parallel
+      const [houseRes, senateRes] = await Promise.all([
+        axios.get(`https://www.openaustralia.org.au/api/getRepresentatives?key=${apiKey}&postcode=${cleanPostal}&output=js`),
+        state ? axios.get(`https://www.openaustralia.org.au/api/getSenators?key=${apiKey}&state=${state}&output=js`) : Promise.resolve({ data: [] })
+      ]);
+
+      if ((!houseRes.data || houseRes.data.length === 0) && (!senateRes.data || senateRes.data.length === 0)) {
+        throw new Error("No representatives found for this postcode.");
+      }
+
+      // Map House Representatives
+      const houseReps: Representative[] = (houseRes.data || []).map((rep: any) => {
+        const firstName = (rep.first_name || '').toLowerCase().replace(/[^a-z]/g, '');
+        const lastName = (rep.last_name || '').toLowerCase().replace(/[^a-z]/g, '');
+        const email = firstName && lastName ? `${firstName}.${lastName}@aph.gov.au` : '';
+
+        let photoUrl = rep.image || '';
+        if (photoUrl && photoUrl.startsWith('/')) {
+          photoUrl = `https://www.openaustralia.org.au${photoUrl}`;
+        }
+
+        return {
+          name: rep.full_name || rep.name || '',
+          district: rep.constituency || '',
+          email: email,
+          photo: photoUrl,
+          country: 'AU',
+          title: 'Member of Parliament',
+          phone: rep.phone || undefined,
+          contactForm: `https://www.openaustralia.org.au/mp/${rep.person_id}`,
+          type: 'mp'
+        };
+      });
+
+      // Map Senators
+      const senators: Representative[] = (senateRes.data || []).map((sen: any) => {
+        const firstName = (sen.first_name || '').toLowerCase().replace(/[^a-z]/g, '');
+        const lastName = (sen.last_name || '').toLowerCase().replace(/[^a-z]/g, '');
+        const email = firstName && lastName ? `${firstName}.${lastName}@aph.gov.au` : '';
+
+        let photoUrl = sen.image || '';
+        if (photoUrl && photoUrl.startsWith('/')) {
+          photoUrl = `https://www.openaustralia.org.au${photoUrl}`;
+        }
+
+        return {
+          name: sen.full_name || sen.name || '',
+          district: sen.constituency || state || '', // State name
+          email: email,
+          photo: photoUrl,
+          country: 'AU',
+          title: 'Senator',
+          phone: sen.phone || undefined,
+          contactForm: `https://www.openaustralia.org.au/senator/${sen.person_id}`,
+          type: 'sen'
+        };
+      });
+
+      // Combine House MPs and Senators
+      return [...houseReps, ...senators];
+    } catch (err: any) {
+      console.error("Australian Lookup Error:", err.response?.data?.error || err.message);
+
+      if (err.message.includes("Invalid Australian postcode")) {
+        throw err;
+      }
+
+      throw new Error("Unable to locate your Australian representative. Please check the postcode.");
+    }
+  };
+
+  // Helper function to map Australian postcode to state
+  // Reference: https://en.wikipedia.org/wiki/Postcodes_in_Australia
+  const getStateFromPostcode = (postcode: string): string | null => {
+    const code = parseInt(postcode);
+
+    // ACT: 0200-0299, 2600-2639 (must check before NSW to avoid overlap)
+    if ((code >= 200 && code <= 299) || (code >= 2600 && code <= 2639)) {
+      return 'ACT';
+    }
+    // NSW: 1000-2599, 2640-2999
+    if ((code >= 1000 && code <= 2599) || (code >= 2640 && code <= 2999)) {
+      return 'NSW';
+    }
+    // VIC: 3000-3999, 8000-8999
+    if ((code >= 3000 && code <= 3999) || (code >= 8000 && code <= 8999)) {
+      return 'Victoria';
+    }
+    // QLD: 4000-4999, 9000-9999
+    if ((code >= 4000 && code <= 4999) || (code >= 9000 && code <= 9999)) {
+      return 'Queensland';
+    }
+    // SA: 5000-5999
+    if (code >= 5000 && code <= 5999) {
+      return 'SA';
+    }
+    // WA: 6000-6999
+    if (code >= 6000 && code <= 6999) {
+      return 'WA';
+    }
+    // TAS: 7000-7999
+    if (code >= 7000 && code <= 7999) {
+      return 'Tasmania';
+    }
+    // NT: 0800-0999
+    if (code >= 800 && code <= 999) {
+      return 'NT';
+    }
+
+    return null;
+  };
+
+  // --- EU Parliament MEPs Fetcher (Uses cached data from Upstash) ---
+  const fetchEUMeps = async (memberState: string): Promise<Representative[]> => {
+    try {
+      const res = await axios.get(`/api/reps?country=EU&memberState=${encodeURIComponent(memberState)}`);
+
+      if (res.data.error) {
+        throw new Error(res.data.error);
+      }
+
+      return res.data.reps as Representative[];
+    } catch (err: any) {
+      console.error("EU MEP Lookup Error:", err.response?.data?.error || err.message);
+
+      // Check if we need to sync
+      if (err.response?.data?.needsSync) {
+        throw new Error("MEP data is being updated. Please try again in a few minutes.");
+      }
+
+      throw new Error(err.response?.data?.error || "Unable to locate EU Parliament representatives. Please try again.");
     }
   };
 

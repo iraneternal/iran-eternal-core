@@ -47,6 +47,16 @@ export async function POST(req: Request) {
         roleDescription = "Swedish Citizen";
         languageInstruction = "Language: Swedish (Formal, professional, respectful tone).";
         salutationInstruction = "Use the formal Swedish salutation: 'Ärade Riksdagsledamot [Name]' or 'Bäste/Bästa [Name]'.";
+    } else if (country === 'AU') {
+        targetTitle = "Member of Parliament/Senator";
+        roleDescription = "Australian Resident";
+        languageInstruction = "Language: English (Australian standard).";
+        salutationInstruction = "Use a formal salutation: 'Dear [Title] [Name]' (e.g., 'Dear Senator Smith' or 'Dear Mr. Jones MP').";
+    } else if (country === 'EU') {
+        targetTitle = "Member of the European Parliament";
+        roleDescription = "European Union Citizen";
+        languageInstruction = "Language: English (formal, diplomatic, suitable for EU institutions).";
+        salutationInstruction = "Use the formal salutation: 'Dear Member of the European Parliament [Name]' or 'Dear MEP [Name]'.";
     }
 
     // --- Politeness Protocol ---
@@ -59,7 +69,70 @@ export async function POST(req: Request) {
 
     // --- Topic Instructions ---
     let specificInstructions = "";
-    if (topic.includes("R2P")) {
+    if (topic.includes("Reza Pahlavi") || topic.includes("plenary")) {
+      // Special handling for EU Reza Pahlavi invitation topic - rotate between 3 templates
+      const templates = [
+        // Template A: Formal & Direct
+        {
+          subject: "Request: Sign the letter to invite Reza Pahlavi to EU Parliament plenary",
+          body: `Dear Member of the European Parliament,
+
+I am writing to respectfully ask that you sign the letter initiated by MEP Sebastian Tynkkynen, addressed to President Roberta Metsola, calling for Reza Pahlavi to be invited to address the European Parliament plenary session.
+
+The Iranian people are facing a severe crackdown by their government. Reza Pahlavi has emerged as a unifying voice for their aspirations for freedom and human rights.
+
+The letter states: "It is time to hear from Reza Pahlavi. A figure whose name is chanted by Iranians in the streets... Silencing or sidelining voices they openly support undermines both our credibility and our stated commitment to human rights."
+
+I kindly urge you to contact MEP Tynkkynen's office before the Friday 13:00 deadline to add your signature.
+
+Respectfully,
+${userName}
+${userAddress}`
+        },
+        // Template B: Constituent Focus
+        {
+          subject: "Please support: Invite Reza Pahlavi to address EU Parliament",
+          body: `Dear Member of the European Parliament,
+
+As someone who cares deeply about human rights in Iran, I am reaching out to ask for your support.
+
+MEP Sebastian Tynkkynen has initiated a letter to President Roberta Metsola requesting that Reza Pahlavi be given the opportunity to speak before the European Parliament plenary.
+
+Reza Pahlavi is a voice that Iranians themselves have chosen to rally behind as they risk their lives protesting for basic freedoms. Inviting him would send a powerful message of solidarity.
+
+I respectfully ask that you contact MEP Tynkkynen's office to add your signature before the deadline this Friday at 13:00.
+
+Thank you for your time and consideration.
+
+Sincerely,
+${userName}
+${userAddress}`
+        },
+        // Template C: Short & Urgent
+        {
+          subject: "Urgent: Please sign letter inviting Reza Pahlavi to EU Parliament",
+          body: `Dear Member of the European Parliament,
+
+I urge you to sign the letter initiated by MEP Sebastian Tynkkynen to invite Reza Pahlavi to address the European Parliament plenary.
+
+Reza Pahlavi represents the voice of millions of Iranians fighting for their freedom. His address would be a meaningful show of European support for human rights.
+
+The deadline to sign is Friday at 13:00. Please contact MEP Tynkkynen's office to add your signature.
+
+Sincerely,
+${userName}
+${userAddress}`
+        }
+      ];
+
+      // Randomly select one of the 3 templates
+      const selectedTemplate = templates[Math.floor(Math.random() * templates.length)];
+
+      return NextResponse.json({
+        subject: selectedTemplate.subject,
+        body: selectedTemplate.body
+      });
+    } else if (topic.includes("R2P")) {
       specificInstructions = "Tone: Urgent and authoritative. Formally invoke the '2005 UN World Summit Outcome resolution' (specifically paragraphs 138 and 139). Emphasize that when a state fails to protect its people from crimes against humanity, the international community must honor its collective commitment to intervene through diplomatic and economic pressure.";
     } else if (topic.includes("Massacre") || topic.includes("Killing")) {
       specificInstructions = "Tone: Urgent. CRITICAL: Reference the CBS News report confirming the death toll has surpassed 12,000 (Source: https://www.cbsnews.com/news/iran-protest-death-toll-over-12000-feared-higher-video-bodies-at-morgue/). Emphasize that the internet blackout (Jan 8 - Present) is being used to hide these mass killings.";

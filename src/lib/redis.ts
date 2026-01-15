@@ -9,6 +9,10 @@ export const redis = new Redis({
 export const CACHE_KEYS = {
   FRANCE_DEPUTIES: 'reps:france:deputies',
   SWEDEN_MPS: 'reps:sweden:mps',
+  AUSTRALIA_HOUSE: 'reps:australia:house',
+  AUSTRALIA_SENATORS: 'reps:australia:senators',
+  EU_MEPS: 'reps:eu:meps',
+  EU_COMMITTEE_MEMBERS: 'reps:eu:committee_members', // MEP ID -> committees mapping
   LAST_SYNC: 'reps:last_sync',
 };
 

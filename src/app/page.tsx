@@ -8,12 +8,45 @@ import {
 import { useRepresentative } from '@/hooks/useRepresentative';
 
 const COUNTRIES = [
+  { code: 'EU', name: 'EU Parliament', flag: 'https://flagcdn.com/eu.svg' },
   { code: 'CA', name: 'Canada', flag: 'https://flagcdn.com/ca.svg' },
   { code: 'UK', name: 'United Kingdom', flag: 'https://flagcdn.com/gb.svg' },
   { code: 'DE', name: 'Germany', flag: 'https://flagcdn.com/de.svg' },
   { code: 'FR', name: 'France', flag: 'https://flagcdn.com/fr.svg' },
   { code: 'SE', name: 'Sweden', flag: 'https://flagcdn.com/se.svg' },
-  { code: 'US', name: 'United States', flag: 'https://flagcdn.com/us.svg' }
+  { code: 'AU', name: 'Australia', flag: 'https://flagcdn.com/au.svg' },
+  { code: 'US', name: 'United States', flag: 'https://flagcdn.com/us.svg' },
+] as const;
+
+// EU Member States for dropdown when EU is selected
+const EU_MEMBER_STATES = [
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'BG', name: 'Bulgaria' },
+  { code: 'HR', name: 'Croatia' },
+  { code: 'CY', name: 'Cyprus' },
+  { code: 'CZ', name: 'Czech Republic' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'EE', name: 'Estonia' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'FR', name: 'France' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'HU', name: 'Hungary' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'LV', name: 'Latvia' },
+  { code: 'LT', name: 'Lithuania' },
+  { code: 'LU', name: 'Luxembourg' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'SK', name: 'Slovakia' },
+  { code: 'SI', name: 'Slovenia' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'SE', name: 'Sweden' },
 ] as const;
 
 const STEPS = [
@@ -27,11 +60,12 @@ export default function Home() {
   const [showPrivacy, setShowPrivacy] = useState(false);
 
   // Search State
-  const [selectedCountry, setSelectedCountry] = useState<'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE'>('CA');
-  const [postal, setPostal] = useState(''); 
+  const [selectedCountry, setSelectedCountry] = useState<'CA' | 'US' | 'UK' | 'DE' | 'FR' | 'SE' | 'AU' | 'EU'>('EU');
+  const [postal, setPostal] = useState('');
   const [usStreet, setUsStreet] = useState('');
   const [usCity, setUsCity] = useState('');
   const [usZip, setUsZip] = useState('');
+  const [euMemberState, setEuMemberState] = useState('');
 
   // User Details
   const [userName, setUserName] = useState('');
@@ -69,11 +103,17 @@ export default function Home() {
       "Emergency Action: End Total Internet Blackout (Since Jan 8)",
       "Crimes Against Humanity: Support UN Investigation & ICC Referral"
     ];
-    
-    // Add "Expel Diplomats" option for European countries
-    if (['UK', 'DE', 'FR', 'SE'].includes(primaryRep?.country || '')) {
+
+    // Add "Expel Diplomats" option for European countries and EU Parliament
+    if (['UK', 'DE', 'FR', 'SE', 'EU'].includes(primaryRep?.country || '')) {
       baseTopics.splice(1, 0, "Expel Iran Regime Diplomats");
     }
+
+    // Add EU-specific topic for Reza Pahlavi invitation
+    if (primaryRep?.country === 'EU') {
+      baseTopics.unshift("Urgent: Sign letter to invite Reza Pahlavi to EU Parliament plenary");
+    }
+
     return baseTopics;
   }, [primaryRep?.country]);
 
@@ -87,13 +127,14 @@ export default function Home() {
   const handleFind = async () => {
     const results = await findRep({
       country: selectedCountry,
-      postal, street: usStreet, city: usCity, 
-      ...(selectedCountry === 'US' && { postal: usZip }) 
+      postal, street: usStreet, city: usCity,
+      ...(selectedCountry === 'US' && { postal: usZip }),
+      ...(selectedCountry === 'EU' && { memberState: euMemberState })
     });
-    
+
     if (results && results.length > 0) {
       if (selectedCountry !== 'US') {
-        setUserAddress(''); 
+        setUserAddress('');
       }
       setStep(2);
     }
@@ -260,12 +301,27 @@ export default function Home() {
                       <input className="w-full md:flex-1 p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-black focus:ring-2 focus:ring-black/5 outline-none text-base transition-all placeholder:text-gray-400" placeholder="Zip Code" value={usZip} onChange={(e) => setUsZip(e.target.value)} inputMode="numeric" />
                     </div>
                   </div>
+                ) : selectedCountry === 'EU' ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600 text-center">Select your EU member state to find your MEPs</p>
+                    <select
+                      value={euMemberState}
+                      onChange={(e) => setEuMemberState(e.target.value)}
+                      className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-black focus:ring-2 focus:ring-black/5 outline-none text-base transition-all"
+                    >
+                      <option value="">Select your country...</option>
+                      {EU_MEMBER_STATES.map((state) => (
+                        <option key={state.code} value={state.code}>{state.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 ) : (
                   <input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder={
                     selectedCountry === 'CA' ? "Postal Code (e.g. M5V 2H1)" :
                     selectedCountry === 'DE' ? "Postleitzahl (PLZ)" :
                     selectedCountry === 'FR' ? "Code Postal (ex: 75001)" :
                     selectedCountry === 'SE' ? "Postnummer (ex: 11453)" :
+                    selectedCountry === 'AU' ? "Postcode (e.g. 2000)" :
                     "Postcode (e.g. SW1A 0AA)"
                   } className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-black focus:ring-2 focus:ring-black/5 outline-none font-medium uppercase text-base transition-all placeholder:text-gray-400" onKeyDown={(e) => e.key === 'Enter' && handleFind()} />
                 )}
@@ -281,8 +337,8 @@ export default function Home() {
           {step === 2 && reps && reps.length > 0 && (
              <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
                
-               {/* Selection List - USA, GERMANY, FRANCE, SWEDEN (Multiple Reps possible per region/zip) */}
-               {['US', 'DE', 'FR', 'SE'].includes(selectedCountry) ? (
+               {/* Selection List - USA, GERMANY, FRANCE, SWEDEN, AUSTRALIA, EU (Multiple Reps possible per region/zip) */}
+               {['US', 'DE', 'FR', 'SE', 'AU', 'EU'].includes(selectedCountry) ? (
                  <div className="space-y-2">
                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Select Recipients:</p>
                    <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
@@ -303,6 +359,7 @@ export default function Home() {
                               <div>
                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{r.title}</p>
                                  <h3 className="font-bold text-sm text-gray-900 leading-tight">{r.name}</h3>
+                                 {r.committee && <p className="text-xs text-blue-600 font-medium">{r.committee}</p>}
                               </div>
                            </div>
                          );
@@ -375,7 +432,7 @@ export default function Home() {
               
               {/* BUTTONS: SPLIT LOGIC FOR US vs NON-US */}
               
-              {/* OPTION A: CANADA / UK / GERMANY (Standard Send Button + Copy) */}
+              {/* OPTION A: CANADA / UK / GERMANY / EU (Standard Send Button + Copy) */}
               {selectedCountry !== 'US' && (
                 <div className="space-y-3 pt-2">
                   <div className="flex flex-col gap-3 sm:flex-row">
