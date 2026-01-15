@@ -117,6 +117,13 @@ export default function Home() {
     return baseTopics;
   }, [primaryRep?.country]);
 
+  // Reset topic to first available when country changes (prevents stale topic on EU selection)
+  useEffect(() => {
+    if (availableTopics.length > 0) {
+      setTopic(availableTopics[0]);
+    }
+  }, [availableTopics]);
+
   // Toggle Selection
   const toggleRep = (index: number) => {
     setSelectedRepIndices(prev => 
