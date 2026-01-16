@@ -213,7 +213,9 @@ export default function Home() {
     if (!emailContent) return "#";
     // Combine emails from all selected reps
     const emails = selectedReps.map(r => r.email).filter(e => e).join(',');
-    return `mailto:${emails}?subject=${encodeURIComponent(emailContent.subject)}&body=${encodeURIComponent(emailContent.body)}`;
+    // Replace \n with \r\n (CRLF) for better compatibility with iOS Gmail and other mobile email clients
+    const bodyWithCRLF = emailContent.body.replace(/\n/g, '\r\n');
+    return `mailto:${emails}?subject=${encodeURIComponent(emailContent.subject)}&body=${encodeURIComponent(bodyWithCRLF)}`;
   };
 
   return (
