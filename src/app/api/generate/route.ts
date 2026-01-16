@@ -162,6 +162,7 @@ ${userAddress}`
       4. Focus: The lack of connectivity is preventing the world from seeing the Mass Killings in real-time.
       5. Closing: Sign off professionally (e.g., "Sincerely", "Hochachtungsvoll", "Respectueusement", "Med vänlig hälsning") followed by Sender Details.
       6. Format: JSON { "subject": "str", "body": "str" }
+      7. IMPORTANT: Use proper paragraph breaks (\\n\\n) between sections - salutation, each main paragraph, and closing. The body must NOT be one continuous block of text.
     `;
 
     const result = await model.generateContent(prompt);

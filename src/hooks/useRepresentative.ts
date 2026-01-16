@@ -335,10 +335,22 @@ export function useRepresentative() {
     const mpData = mpRes.data?.items?.[0]?.value?.currentRepresentation?.member?.value;
     if (!mpData) throw new Error("No sitting MP found.");
 
+    // Fetch email from Contact API
+    let email = '';
+    try {
+      const contactRes = await axios.get(`https://members-api.parliament.uk/api/Members/${mpData.id}/Contact`);
+      const contacts = contactRes.data?.value || [];
+      // Find parliamentary office email
+      const parliamentaryOffice = contacts.find((c: any) => c.type === 'Parliamentary office' && c.email);
+      email = parliamentaryOffice?.email || '';
+    } catch {
+      // If contact API fails, leave email empty
+    }
+
     return {
       name: mpData.nameDisplayAs,
       district: constituency,
-      email: "", 
+      email,
       photo: mpData.thumbnailUrl,
       country: 'UK',
       title: "Member of Parliament",
