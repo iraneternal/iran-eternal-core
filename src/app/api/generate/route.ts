@@ -69,75 +69,20 @@ export async function POST(req: Request) {
 
     // --- Topic Instructions ---
     let specificInstructions = "";
-    if (topic.includes("Reza Pahlavi") || topic.includes("plenary")) {
-      // Special handling for EU Reza Pahlavi invitation topic - rotate between 3 templates
-      const templates = [
-        // Template A: Formal & Direct
-        {
-          subject: "Request: Sign the letter to invite Reza Pahlavi to EU Parliament plenary",
-          body: `Dear Member of the European Parliament,
-
-I am writing to respectfully ask that you sign the letter initiated by MEP Sebastian Tynkkynen, addressed to President Roberta Metsola, calling for Reza Pahlavi to be invited to address the European Parliament plenary session.
-
-The Iranian people are facing a severe crackdown by their government. Reza Pahlavi has emerged as a unifying voice for their aspirations for freedom and human rights.
-
-The letter states: "It is time to hear from Reza Pahlavi. A figure whose name is chanted by Iranians in the streets... Silencing or sidelining voices they openly support undermines both our credibility and our stated commitment to human rights."
-
-I kindly urge you to contact MEP Tynkkynen's office before the Friday 13:00 deadline to add your signature.
-
-Respectfully,
-${userName}
-${userAddress}`
-        },
-        // Template B: Constituent Focus
-        {
-          subject: "Please support: Invite Reza Pahlavi to address EU Parliament",
-          body: `Dear Member of the European Parliament,
-
-As someone who cares deeply about human rights in Iran, I am reaching out to ask for your support.
-
-MEP Sebastian Tynkkynen has initiated a letter to President Roberta Metsola requesting that Reza Pahlavi be given the opportunity to speak before the European Parliament plenary.
-
-Reza Pahlavi is a voice that Iranians themselves have chosen to rally behind as they risk their lives protesting for basic freedoms. Inviting him would send a powerful message of solidarity.
-
-I respectfully ask that you contact MEP Tynkkynen's office to add your signature before the deadline this Friday at 13:00.
-
-Thank you for your time and consideration.
-
-Sincerely,
-${userName}
-${userAddress}`
-        },
-        // Template C: Short & Urgent
-        {
-          subject: "Urgent: Please sign letter inviting Reza Pahlavi to EU Parliament",
-          body: `Dear Member of the European Parliament,
-
-I urge you to sign the letter initiated by MEP Sebastian Tynkkynen to invite Reza Pahlavi to address the European Parliament plenary.
-
-Reza Pahlavi represents the voice of millions of Iranians fighting for their freedom. His address would be a meaningful show of European support for human rights.
-
-The deadline to sign is Friday at 13:00. Please contact MEP Tynkkynen's office to add your signature.
-
-Sincerely,
-${userName}
-${userAddress}`
-        }
-      ];
-
-      // Randomly select one of the 3 templates
-      const selectedTemplate = templates[Math.floor(Math.random() * templates.length)];
-
-      return NextResponse.json({
-        subject: selectedTemplate.subject,
-        body: selectedTemplate.body
-      });
-    } else if (topic.includes("R2P")) {
+    if (topic.includes("R2P")) {
       specificInstructions = "Tone: Urgent and authoritative. Formally invoke the '2005 UN World Summit Outcome resolution' (specifically paragraphs 138 and 139). Emphasize that when a state fails to protect its people from crimes against humanity, the international community must honor its collective commitment to intervene through diplomatic and economic pressure.";
     } else if (topic.includes("Massacre") || topic.includes("Killing")) {
-      specificInstructions = "Tone: Urgent. CRITICAL: Reference the CBS News report confirming the death toll has surpassed 12,000 (Source: https://www.cbsnews.com/news/iran-protest-death-toll-over-12000-feared-higher-video-bodies-at-morgue/). Emphasize that the internet blackout (Jan 8 - Present) is being used to hide these mass killings.";
+      specificInstructions = "Tone: Urgent. CRITICAL: Reference the Bloomberg report citing the UN special rapporteur on human rights in Iran, who reported based on doctors inside the country that the death toll has now topped 20,000 (Source: https://www.bloomberg.com/news/articles/2026-01-22/iran-protest-deaths-seen-rising-with-one-estimate-topping-20-000). Emphasize that the internet blackout (Jan 8 - Present) is being used to hide these mass killings.";
     } else if (topic.includes("Expel") || topic.includes("Diplomats")) {
-      specificInstructions = "Tone: Firm and Principled. Explicitly state that the Islamic Republic has lost all legitimacy and does not represent the Iranian people. Argue that maintaining diplomatic relations normalizes a regime actively warring against its own citizens.";
+      specificInstructions = "Tone: Firm and Principled. Explicitly state that the Islamic Republic has lost all legitimacy and does not represent the Iranian people. Argue that maintaining diplomatic relations normalizes a regime actively warring against its own citizens. Urge the government to expel the regime's diplomats and pursue legal action against perpetrators of crimes against humanity.";
+    } else if (topic.includes("Internet") || topic.includes("Blackout")) {
+      specificInstructions = "Tone: Urgent and Technical. Emphasize that the total internet blackout since Jan 8 is being used to hide mass killings. Urge the government to provide internet for Iran through Starlink and other secure communications tools, and to take action to disable the regime's ability to shut down the internet. Highlight that connectivity is essential for documenting human rights abuses and protecting civilians.";
+    } else if (topic.includes("Economic") || topic.includes("Shadow Fleet")) {
+      specificInstructions = "Tone: Firm and Strategic. Urge maximum economic pressure on the regime by blocking its assets around the world and targeting its clandestine network of oil tankers, known as the 'shadow fleet.' Emphasize that cutting off the regime's financial lifelines is essential to stopping its violence against the Iranian people.";
+    } else if (topic.includes("Political Prisoners") || topic.includes("Free All")) {
+      specificInstructions = "Tone: Urgent and Humanitarian. Demand the immediate and unconditional release of all political prisoners in Iran. Emphasize that thousands of peaceful protesters, journalists, activists, and human rights defenders are being detained, tortured, and executed simply for demanding their basic rights.";
+    } else if (topic.includes("Democratic Transition") || topic.includes("Transitional Government")) {
+      specificInstructions = "Tone: Forward-looking and Principled. Urge the government to prepare for a democratic transition in Iran and to recognize a legitimate transitional government that represents the will of the Iranian people. Emphasize that the international community must stand ready to support the Iranian people's aspirations for freedom and self-determination.";
     }
 
     // --- The Prompt ---

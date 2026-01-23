@@ -46,29 +46,29 @@ export function useRepresentative() {
         results = await fetchUSDelegation(fullAddress);
       } 
       else if (params.country === 'UK') {
-        if (!params.postal) throw new Error("Postcode is required.");
+        if (!params.postal) throw new Error("Please enter your postcode to find your MP. We don't save any data.");
         const rep = await fetchUKRep(params.postal);
         results = [rep];
-      } 
+      }
       else if (params.country === 'CA') {
-        if (!params.postal) throw new Error("Postal Code is required.");
+        if (!params.postal) throw new Error("Please enter your postal code to find your MP. We don't save any data.");
         const rep = await fetchCanadianRep(params.postal);
         results = [rep];
       }
       else if (params.country === 'DE') {
-        if (!params.postal) throw new Error("Postleitzahl is required.");
+        if (!params.postal) throw new Error("Bitte geben Sie Ihre PLZ ein, um Ihre Abgeordneten zu finden. Wir speichern keine Daten.");
         results = await fetchGermanReps(params.postal);
       }
       else if (params.country === 'FR') {
-        if (!params.postal) throw new Error("Code postal is required.");
+        if (!params.postal) throw new Error("Veuillez entrer votre code postal pour trouver vos députés. Nous ne conservons aucune donnée.");
         results = await fetchFrenchReps(params.postal);
       }
       else if (params.country === 'SE') {
-        if (!params.postal) throw new Error("Postnummer is required.");
+        if (!params.postal) throw new Error("Ange ditt postnummer för att hitta dina riksdagsledamöter. Vi sparar ingen data.");
         results = await fetchSwedishReps(params.postal);
       }
       else if (params.country === 'AU') {
-        if (!params.postal) throw new Error("Postcode is required.");
+        if (!params.postal) throw new Error("Please enter your postcode to find your representatives. We don't save any data.");
         results = await fetchAustralianReps(params.postal);
       }
       else if (params.country === 'EU') {

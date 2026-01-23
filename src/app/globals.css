@@ -13,10 +13,8 @@
 }
 
 body {
-    background: radial-gradient(at 0 0, #100f15 0, #0000 50%), 
-                radial-gradient(at 50% 0, #232222 0, #0000 50%), 
-                #111 radial-gradient(at 100% 0, #000000 0, #0000 50%);
-    background-color: #111;
+    background: radial-gradient(at 0 0, #081e34 0, #0d2b4e 50%);
+    background-color: #081e34;
     color: #fff;
     font-family: Arial, Helvetica, sans-serif;
     min-height: 100vh;

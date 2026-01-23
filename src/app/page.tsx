@@ -78,7 +78,7 @@ export default function Home() {
   // AI Generation
   const [emailContent, setEmailContent] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [topic, setTopic] = useState('Stop the Massacre: Condemn Killing of 500+ Protesters');
+  const [topic, setTopic] = useState('Stop the Massacre: Condemn Killing of 20,000+ Protesters');
   
   // Mobile UI Feedback
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -98,20 +98,18 @@ export default function Home() {
 
   const availableTopics = useMemo(() => {
     const baseTopics = [
-      "Stop the Massacre: Condemn Killing of 12,000+ Protesters",
+      "Stop the Massacre: Condemn Killing of 20,000+ Protesters",
       "Invoke R2P: International Responsibility to Protect the Iranian People",
       "Emergency Action: End Total Internet Blackout (Since Jan 8)",
-      "Crimes Against Humanity: Support UN Investigation & ICC Referral"
+      "Crimes Against Humanity: Support UN Investigation & ICC Referral",
+      "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
+      "Free All Political Prisoners: Immediate and Unconditional Release",
+      "Support Democratic Transition: Recognize Legitimate Transitional Government"
     ];
 
     // Add "Expel Diplomats" option for European countries and EU Parliament
     if (['UK', 'DE', 'FR', 'SE', 'EU'].includes(primaryRep?.country || '')) {
       baseTopics.splice(1, 0, "Expel Iran Regime Diplomats");
-    }
-
-    // Add EU-specific topic for Reza Pahlavi invitation
-    if (primaryRep?.country === 'EU') {
-      baseTopics.unshift("Urgent: Sign letter to invite Reza Pahlavi to EU Parliament plenary");
     }
 
     return baseTopics;
@@ -236,7 +234,7 @@ export default function Home() {
         <div className="flex flex-col md:flex-row items-center justify-center gap-4">
           <img src="https://flagofiran.com/files/Flag_of_Iran_simplified.svg" alt="Flag of Iran" className="h-14 w-auto rounded-lg shadow-lg border border-white/10" />
           <div className="text-center md:text-left">
-            <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-100 to-gray-400">IRAN ETERNAL</h1>
+            <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-white">IRAN ETERNAL</h1>
             <p className="text-[#C5A059] text-xs md:text-sm uppercase tracking-[0.3em] font-semibold mt-1">The Voice of Freedom</p>
           </div>
         </div>
