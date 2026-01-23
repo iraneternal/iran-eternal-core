@@ -78,7 +78,7 @@ export default function Home() {
   // AI Generation
   const [emailContent, setEmailContent] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [topic, setTopic] = useState('Stop the Massacre: Condemn Killing of 20,000+ Protesters');
+  const [topic, setTopic] = useState('Invoke R2P: International Responsibility to Protect the Iranian People');
   
   // Mobile UI Feedback
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -97,22 +97,30 @@ export default function Home() {
   }, [reps, selectedRepIndices]);
 
   const availableTopics = useMemo(() => {
-    const baseTopics = [
-      "Stop the Massacre: Condemn Killing of 20,000+ Protesters",
-      "Invoke R2P: International Responsibility to Protect the Iranian People",
-      "Emergency Action: End Total Internet Blackout (Since Jan 8)",
-      "Crimes Against Humanity: Support UN Investigation & ICC Referral",
-      "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
-      "Free All Political Prisoners: Immediate and Unconditional Release",
-      "Support Democratic Transition: Recognize Legitimate Transitional Government"
-    ];
+    const isEuropean = ['UK', 'DE', 'FR', 'SE', 'EU'].includes(primaryRep?.country || '');
 
-    // Add "Expel Diplomats" option for European countries and EU Parliament
-    if (['UK', 'DE', 'FR', 'SE', 'EU'].includes(primaryRep?.country || '')) {
-      baseTopics.splice(1, 0, "Expel Iran Regime Diplomats");
+    if (isEuropean) {
+      // European countries: Expel Diplomats first, then R2P
+      return [
+        "Expel Iran Regime Diplomats",
+        "Invoke R2P: International Responsibility to Protect the Iranian People",
+        "Emergency Action: End Total Internet Blackout (Since Jan 8)",
+        "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
+        "Free All Political Prisoners: Immediate and Unconditional Release",
+        "Support Democratic Transition: Recognize Legitimate Transitional Government",
+        "Condemn Killing of 20,000+ Protesters"
+      ];
     }
 
-    return baseTopics;
+    // US, Canada, Australia: R2P first
+    return [
+      "Invoke R2P: International Responsibility to Protect the Iranian People",
+      "Emergency Action: End Total Internet Blackout (Since Jan 8)",
+      "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
+      "Free All Political Prisoners: Immediate and Unconditional Release",
+      "Support Democratic Transition: Recognize Legitimate Transitional Government",
+      "Condemn Killing of 20,000+ Protesters"
+    ];
   }, [primaryRep?.country]);
 
   // Reset topic to first available when country changes (prevents stale topic on EU selection)
