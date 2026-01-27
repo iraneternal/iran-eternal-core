@@ -69,10 +69,10 @@ export async function POST(req: Request) {
 
     // --- Topic Instructions ---
     let specificInstructions = "";
-    if (topic.includes("R2P")) {
-      specificInstructions = "Tone: Urgent and authoritative. Formally invoke the '2005 UN World Summit Outcome resolution' (specifically paragraphs 138 and 139). Emphasize that when a state fails to protect its people from crimes against humanity, the international community must honor its collective commitment to intervene through diplomatic and economic pressure.";
+    if (topic.includes("IRGC") || topic.includes("Machinery of Repression")) {
+      specificInstructions = "Tone: Urgent and authoritative. Urge the government to protect the people of Iran by weakening the regime's machinery of repression, especially by targeting the Islamic Revolutionary Guard Corps (IRGC), its commanders, its command structure, and its infrastructure. Emphasize that the IRGC is the regime's primary instrument of violence against its own people and must be sanctioned, designated as a terrorist organization where not already done, and its networks dismantled.";
     } else if (topic.includes("Massacre") || topic.includes("Killing")) {
-      specificInstructions = "Tone: Urgent. CRITICAL: Reference the Bloomberg report citing the UN special rapporteur on human rights in Iran, who reported based on doctors inside the country that the death toll has now topped 20,000 (Source: https://www.bloomberg.com/news/articles/2026-01-22/iran-protest-deaths-seen-rising-with-one-estimate-topping-20-000). Emphasize that the internet blackout (Jan 8 - Present) is being used to hide these mass killings.";
+      specificInstructions = "Tone: Urgent. CRITICAL: Reference the Bloomberg report citing the UN special rapporteur on human rights in Iran, who reported based on doctors inside the country that the death toll has now topped 30,000 (Source: https://time.com/7357635/more-than-30000-killed-in-iran-say-senior-officials/). Emphasize that the internet blackout (Jan 8 - Present) is being used to hide these mass killings.";
     } else if (topic.includes("Expel") || topic.includes("Diplomats")) {
       specificInstructions = "Tone: Firm and Principled. Explicitly state that the Islamic Republic has lost all legitimacy and does not represent the Iranian people. Argue that maintaining diplomatic relations normalizes a regime actively warring against its own citizens. Urge the government to expel the regime's diplomats and pursue legal action against perpetrators of crimes against humanity.";
     } else if (topic.includes("Internet") || topic.includes("Blackout")) {

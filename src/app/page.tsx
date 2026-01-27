@@ -78,7 +78,7 @@ export default function Home() {
   // AI Generation
   const [emailContent, setEmailContent] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [topic, setTopic] = useState('Invoke R2P: International Responsibility to Protect the Iranian People');
+  const [topic, setTopic] = useState("Target the IRGC: Weaken the Regime's Machinery of Repression");
   
   // Mobile UI Feedback
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -103,23 +103,23 @@ export default function Home() {
       // European countries: Expel Diplomats first, then R2P
       return [
         "Expel Iran Regime Diplomats",
-        "Invoke R2P: International Responsibility to Protect the Iranian People",
+        "Target the IRGC: Weaken the Regime's Machinery of Repression",
         "Emergency Action: End Total Internet Blackout (Since Jan 8)",
         "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
         "Free All Political Prisoners: Immediate and Unconditional Release",
         "Support Democratic Transition: Recognize Legitimate Transitional Government",
-        "Condemn Killing of 20,000+ Protesters"
+        "Condemn Killing of 30,000+ Protesters"
       ];
     }
 
     // US, Canada, Australia: R2P first
     return [
-      "Invoke R2P: International Responsibility to Protect the Iranian People",
+      "Target the IRGC: Weaken the Regime's Machinery of Repression",
       "Emergency Action: End Total Internet Blackout (Since Jan 8)",
       "Maximum Economic Pressure: Block Regime Assets & Target Shadow Fleet",
       "Free All Political Prisoners: Immediate and Unconditional Release",
       "Support Democratic Transition: Recognize Legitimate Transitional Government",
-      "Condemn Killing of 20,000+ Protesters"
+      "Condemn Killing of 30,000+ Protesters"
     ];
   }, [primaryRep?.country]);
 
