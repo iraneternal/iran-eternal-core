@@ -240,7 +240,7 @@ export default function Home() {
       {/* 1. HERO */}
       <div className="max-w-3xl w-full text-center mb-8 space-y-5 animate-in fade-in slide-in-from-top-4 duration-700">
         <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-          <img src="https://flagofiran.com/files/Flag_of_Iran_simplified.svg" alt="Flag of Iran" className="h-14 w-auto rounded-lg shadow-lg border border-white/10" />
+          <img src="/Flag_of_Iran.svg" alt="Flag of Iran" className="h-14 w-auto rounded-lg shadow-lg border border-white/10" />
           <div className="text-center md:text-left">
             <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-white">IRAN ETERNAL</h1>
             <p className="text-[#C5A059] text-xs md:text-sm uppercase tracking-[0.3em] font-semibold mt-1">The Voice of Freedom</p>
